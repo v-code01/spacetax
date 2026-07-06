@@ -1,0 +1,45 @@
+# Every claim spacetax makes, each tied to the artifact that proves it.
+# Verify integrity with ./scripts/gate.sh; reproduce with ./reproduce.sh.
+
+[project]
+name = "spacetax"
+summary = "How a single trailing space on a prompt changes a byte-level-BPE model's behavior, on a real llama.cpp server (Qwen2.5-1.5B). A trailing space changes the tokenization on 100% of 30 prompts (always +1 token) and the greedy (temperature 0) output on 100%. It is a correctness hazard, not stylistic: on 15 factual prompts it flips the answer 6 times and turns a correct answer wrong 5 times (33%), dropping accuracy from 14/15 to 10/15. The mechanism is the token boundary: Qwen's byte-level BPE prefixes word tokens with a space marker, so without a trailing space the first generated token begins with a space 100% of the time, but with the space consumed only 7% do - forcing an off-distribution continuation. The fix is to strip trailing whitespace; the failure is silent."
+language = "Python"
+license = "MIT"
+oracles = "the real tokenizer (/tokenize) and the deterministic greedy (temperature 0, fixed seed) output; all comparisons are exact (token lists and output strings). Factual prompts use hand-listed accepted answers checked by case-insensitive substring. results/gen.jsonl is committed. verify.py recomputes the tokenization/output/answer rates and the space-marker mechanism with its own logic, sharing no code with analyze.py or src. No LLM judge."
+
+[[claim]]
+id = "pre-registered-prediction"
+statement = "Four predictions were committed to git in PREREG.md before the analysis - tokenization changes on essentially all prompts (P1), output changes on a large majority (P2), it is a correctness hazard flipping factual answers (P3), the mechanism is the token boundary (P4) - and all four held. PREREG.md is not edited after the results."
+evidence = "PREREG.md (committed before results); README pre-registration section; bench_results/frontier.md."
+status = "verified"
+
+[[claim]]
+id = "changes-tokenization-and-output"
+statement = "A single trailing space changes the tokenization on 100% of 30 prompts (always adding exactly one token) and the greedy output on 100%. The two requests are identical to a person and different to the model."
+evidence = "bench_results/frontier.md; results/gen.jsonl tok_nospace/tok_space and out_nospace/out_space; tools/verify.py asserts tokenization change >90% and output change >60%."
+status = "verified"
+
+[[claim]]
+id = "correctness-hazard"
+statement = "It is a correctness hazard, not stylistic: on 15 factual prompts a trailing space flips the answer 6 times and turns a correct answer wrong 5 times (33%), dropping accuracy from 14/15 to 10/15. For example, 'The capital of Italy is' continues toward Rome, but with a trailing space it derails into '1000 km away from the capital of Sp...'. The failure is silent - no error, plausible text, wrong answer."
+evidence = "bench_results/frontier.md; results/gen.jsonl factual prompts with accepted answers; tools/verify.py asserts at least two answer changes including at least two correct-to-wrong."
+status = "verified"
+
+[[claim]]
+id = "token-boundary-mechanism"
+statement = "The mechanism is the token boundary: Qwen's byte-level BPE prefixes word tokens with a space marker, so without a trailing space the first generated token begins with a space on 100% of prompts, but with the space consumed only 7% do. The model is forced to emit a non-space-prefixed first token, an off-distribution condition it was rarely trained on, which is why the continuation derails."
+evidence = "bench_results/frontier.md mechanism section; results/gen.jsonl out_nospace/out_space leading characters; tools/verify.py asserts the no-space first-token-space rate is near-universal and far above the with-space rate."
+status = "verified"
+
+[[claim]]
+id = "no-overclaim"
+statement = "One model, one tokenizer family (byte-level BPE), greedy decoding, a single trailing space, 15 factual prompts with hand-listed accepted answers checked by case-insensitive substring. The finding is that a trailing space changes tokenization and output and can change answers - a prompt-hygiene hazard - not a claim about which continuation is better in open-ended cases. The adversarial review is in REVIEW.md."
+evidence = "README limitations + falsifiers; REVIEW.md."
+status = "verified"
+
+[[claim]]
+id = "clean-build"
+statement = "The analysis is ruff-clean and mypy --strict clean, the comparison helpers have unit tests (token delta, difference, the byte-level space marker, answer matching), sources are pure ASCII, the independent verify passes, and no private operating-environment details (host, port, model path) are present in tracked files."
+evidence = "scripts/gate.sh."
+status = "verified"
